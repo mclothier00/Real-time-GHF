@@ -1,64 +1,53 @@
 import numpy as np
-from scipy import integrate
 from scipy.linalg import eigh, inv
 from pyscf import gto, scf
 import scipy
 
-### initialize variables
-timestep = 0.1
-steps = 3
-total_steps = 30
+# class needs mf, timestep, frequency, total_steps
 
-### initialize static calculation
-distance = 1.1
-mol = gto.M(        
-	verbose = 0,       
-	atom=(F'H 0 0 0; H 0 0 {distance}'),        
-	basis='6-31g')
-#        basis='cc-pvdz')
+class GHF:
+    def __init__(self, mf, timestep, frequency, total_steps, orth=None):
+        self.timestep = timestep
+        self.frequency = frequency 
+        self.total_steps = total_steps
+        self._scf = mf
+    
+        if orth is None: self.orth = scf.addons.canonical_orth_(self._scf.get_ovlp())
+        # orth is indexed not in terms of alpha and beta but in terms of eigenvalues; will not be block diagonal
+ 
+    # may have to convert mo coefficients to complex array if they are real from pyscf 
 
-mf = scf.ghf.GHF(mol)
-mf.scf()
+    ####### DYNAMICS #######
+    def dynamics(self):
+        ### creating initial core hamiltonian
+        den = self._scf.make_rdm1() # need to modify this in the future
+        fock = self._scf.get_fock()
+        mo_oth_old = []
 
-### creating initial core hamiltonian 
-#hcore = scf.hf.get_hcore(mol)
-#hcore = scipy.linalg.block_diag(hcore, hcore)
-hcore = mf.get_hcore()
+        print(self._scf.get_ovlp())
+        for i in range(0, self.total_steps):
+            ### transforming coefficients into an orthogonal matrix (step 10)
+            mo_oth = np.dot(inv(self.orth), self._scf.mo_coeff)
 
-den = mf.make_rdm1() # need to modify this in the future
-ovlp = mf.get_ovlp()
-x = scf.addons.canonical_orth_(ovlp)
-fock = hcore + mf.get_veff(mol, den)
-mo_old = mf.mo_coeff
-nuc_e = mf.mol.energy_nuc()
-mo_oth_old = []
+            ### create transformation matrix U from Fock matrix at time t (step 11)
+            fock_oth = np.dot(self.orth.T, np.dot(fock, self.orth))
+            u = scipy.linalg.expm(-1j*2*self.timestep*fock_oth)
 
-####### DYNAMICS #######
-for i in range(0, total_steps):
-   ### transforming coefficients into an orthogonal matrix (step 10)
-   mo_oth = np.dot(inv(x), mf.mo_coeff)
+            ### propagate MO coefficients (step 12)
+            if i != 0:
+                mo_oth_new = np.dot(u, mo_oth_old)
+            else:
+                mo_oth_new = np.dot(u, mo_oth)
 
-   ### create transformation matrix U from Fock matrix at time t (step 11)
-   fock_oth = np.dot(x.T, np.dot(fock, x))
-   u = scipy.linalg.expm(-1j*2*timestep*fock_oth)
+            ### transform coefficients back into non-orthogonal basis and get density matrix
+            self._scf.mo_coeff = np.dot(self.orth, mo_oth_new)
+            den = self._scf.make_rdm1() 
 
-   ### propagate MO coefficients (step 12)
-   if i != 0:
-       mo_oth_new = np.dot(u, mo_oth_old)
-   else:
-       mo_oth_new = np.dot(u, mo_oth)
+            # calculate a new fock matrix
+            fock = self._scf.get_fock()
 
-   ### transform coefficients back into non-orthogonal basis and get density matrix
-   mf.mo_coeff = np.dot(x, mo_oth_new)
-   mo = mf.mo_coeff
-   den = mf.make_rdm1(mo) #check what happens if dont specify the mos as input
-
-   # calculate a new fock matrix
-   fock = hcore + mf.get_veff(mol, den)
-
-   # calculate energy and other observables
-   if np.mod(i, steps)==0:
-      elec_e = mf.energy_elec()
-      print(F'Energy at step {i}: {elec_e + nuc_e}')
-
-   mo_oth_old = mo_oth
+            # calculate energy and other observables
+            if np.mod(i, self.frequency)==0:
+                ener_tot = self._scf.energy_tot()
+                print(F'Energy at step {i}: {ener_tot}')
+            mo_oth_old = mo_oth
