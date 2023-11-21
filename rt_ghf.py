@@ -2,6 +2,7 @@ import numpy as np
 from scipy.linalg import eigh, inv
 from pyscf import gto, scf
 import scipy
+import matplotlib.pyplot as plt
 
 # class needs mf, timestep, frequency, total_steps
 
@@ -20,11 +21,19 @@ class GHF:
     ####### DYNAMICS #######
     def dynamics(self):
         ### creating initial core hamiltonian
-        den = self._scf.make_rdm1() # need to modify this in the future
+#        den = self._scf.make_rdm1() # need to modify this in the future
         fock = self._scf.get_fock()
-        mo_oth_old = []
+        #mo_oth_old = []
+        shape = self.total_steps / self.frequency
+        #mag_x = np.empty(shape = shape)
+        #mag_y = np.empty(shape = shape)
+        #mag_z = np.empty(shape = shape)
+        #time = np.empty(shape = shape)
+        mag_x = []
+        mag_y = []
+        mag_z = []
+        time = []
 
-        print(self._scf.get_ovlp())
         for i in range(0, self.total_steps):
             ### transforming coefficients into an orthogonal matrix (step 10)
             mo_oth = np.dot(inv(self.orth), self._scf.mo_coeff)
@@ -48,6 +57,26 @@ class GHF:
 
             # calculate energy and other observables
             if np.mod(i, self.frequency)==0:
-                ener_tot = self._scf.energy_tot()
-                print(F'Energy at step {i}: {ener_tot}')
+             #   ener_tot = self._scf.energy_tot()
+             #   print(F'Energy at step {i}: {ener_tot}')
+                
+                # 100% hard-coded for the h-atom example using values for BSE, need to change to iterate over matrix elements 
+                den = self._scf.make_rdm1()
+                mag_x.append((den[0,1] + den[1,0]) * 3.425250914) #* 0.1543289673)
+                mag_y.append(1j * (den[0,1] - den[1,0]) * 3.425250914)# * 0.1543289673)
+                mag_z.append((den[0,0] - den[1,1]) * 3.425250914)# * 0.1543289673)
+                time.append(i)
+
             mo_oth_old = mo_oth
+
+        ### graph magentization results (need to move out of class)
+        mag_x = np.array(mag_x)
+        mag_y = np.array(mag_y)
+        mag_z = np.array(mag_z)
+        print(mag_x)
+        print(mag_y)
+        print(mag_z)
+        time = np.array(time)
+        plt.plot(time, mag_x, 'r')#time, mag_y, 'b', time, mag_z, 'g')
+#time, mag_x, 'r',
+        plt.savefig('mag_z.png')
