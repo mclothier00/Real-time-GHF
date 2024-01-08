@@ -7,40 +7,47 @@ import matplotlib.pyplot as plt
 # class needs mf, timestep, frequency, total_steps
 
 class GHF:
-    def __init__(self, mf, timestep, frequency, total_steps, orth=None):
+    def __init__(self, mf, timestep, frequency, total_steps, filename, orth=None):
         self.timestep = timestep
         self.frequency = frequency 
         self.total_steps = total_steps
+        self.filename = filename
         self._scf = mf
     
         if orth is None: self.orth = scf.addons.canonical_orth_(self._scf.get_ovlp())
-        # orth is indexed not in terms of alpha and beta but in terms of eigenvalues; will not be block diagonal
  
-    # may have to convert mo coefficients to complex array if they are real from pyscf 
-
     ####### DYNAMICS #######
     def dynamics(self):
+        ### creating output file for observables (edit to be main output file and to adjust what is calculated)
+        observables = open(F'{self.filename}.txt', 'w')
+        with open(F'{self.filename}.txt', 'a') as f:
+            observables.write('{0: >20}'.format('Time'))
+            observables.write('{0: >35}'.format('Mag x')) 
+            observables.write('{0: >36}'.format('Mag y')) 
+            observables.write('{0: >37}'.format('Mag z'))
+            observables.write(F'\n')
+
         ### creating initial core hamiltonian
-#        den = self._scf.make_rdm1() # need to modify this in the future
         fock = self._scf.get_fock()
         mag_x = []
         mag_y = []
         mag_z = []
-        time = []
+        t_array = []
         energy = []
 
         ovlp = self._scf.get_ovlp()
         Nsp = int(ovlp.shape[0]/2)
 
         for i in range(0, self.total_steps):
-            ### transforming coefficients into an orthogonal matrix (step 10)
+            ### transforming coefficients into an orthogonal matrix 
             mo_oth = np.dot(inv(self.orth), self._scf.mo_coeff)
 
-            ### create transformation matrix U from Fock matrix at time t (step 11)
+            ### create transformation matrix U from Fock matrix at time t 
             fock_oth = np.dot(self.orth.T, np.dot(fock, self.orth))
-            u = scipy.linalg.expm(-1j*2*self.timestep*fock_oth)
 
-            ### propagate MO coefficients (step 12)
+            u = scipy.linalg.expm(-1j*2*self.timestep*fock_oth) # this call is expensive; look into replacing?
+
+            ### propagate MO coefficients 
             if i != 0:
                 mo_oth_new = np.dot(u, mo_oth_old)
             else:
@@ -52,32 +59,56 @@ class GHF:
 
             # calculate a new fock matrix
             fock = self._scf.get_fock()
-
+           
             # calculate energy and other observables
             if np.mod(i, self.frequency)==0:
-                ener_tot = self._scf.energy_tot()
-                energy.append(ener_tot)
-            #    print(F'Energy at step {i}: {ener_tot}')
-                
+            #    ener_tot = self._scf.energy_tot()
+            #    energy.append(ener_tot)
+
                 den = self._scf.make_rdm1()
-                mag_x.append(np.sum(den[:Nsp,Nsp:] + den[Nsp:,:Nsp])) 
-                mag_y.append(1j * (np.sum(den[:Nsp,Nsp:] - den[Nsp:,:Nsp])))
-                mag_z.append(np.sum(den[:Nsp,:Nsp] - den[Nsp:,Nsp:]))
+
+                mag_x_value = 0
+                mag_y_value = 0
+                mag_z_value = 0
+
+                for k in range(0, Nsp):
+                    for j in range(0, Nsp):
+                        ab_add = den[:Nsp, Nsp:][k,j] + den[Nsp:, :Nsp][k,j]
+                        mag_x_value += ab_add * ovlp[k,j]
+        
+                        ab_sub = den[:Nsp, Nsp:][k,j] - den[Nsp:, :Nsp][k,j]
+                        mag_y_value += ab_sub * ovlp[k,j]
+
+                        aa_bb = den[:Nsp, :Nsp][k,j] - den[Nsp:, Nsp:][k,j]
+                        mag_z_value += aa_bb * ovlp[k,j]
 
                 t = (i * self.timestep) / 41341.374575751
-                time.append(t)
-                
-            #    print(f'completed step {i}')                
+
+                with open(F'{self.filename}.txt', 'a') as f:
+                    observables.write(F'{t:20.8e} \t {mag_x_value:20.8e} \t {mag_y_value:20.8e} \t {mag_z_value:20.8e} \n')
+
             mo_oth_old = mo_oth
 
-        ### graph magentization results (need to move out of class)
-        mag_x = np.array(mag_x)
-        mag_y = np.array(mag_y)
-        mag_z = np.array(mag_z)
-        print(mag_x)
-        print(mag_y)
-        print(mag_z)
-        #print(energy)
-        time = np.array(time)
-        plt.plot(time, np.real(mag_x), 'r',time, np.real(mag_y), 'b', time, np.real(mag_z), 'g')
-        plt.savefig('li_mag.png')
+
+    ####### PLOTTING RESULTS #######
+    def plot(self):
+
+        table = []
+        openfile = F'{self.filename}.txt'
+
+        with open(openfile, 'r') as f:
+            next(f)
+            for line in f:
+                data = line.split('\t')
+                data = [x.strip() for x in data]
+                table.append(data)
+
+        table = np.asarray(table)
+
+        plt.plot(table[:,0], np.real(table[:,1]), 'r', label='mag_x')
+        plt.plot(table[:,0], np.real(table[:,2]), 'b', label='mag_y')
+        plt.plot(table[:,0], np.real(table[:,3]), 'g', label='mag_z')
+        plt.xlabel('Time (ps)')
+        plt.ylabel('Magnetization (au)')
+        plt.legend()
+        plt.savefig(F'{self.filename}.png')        
