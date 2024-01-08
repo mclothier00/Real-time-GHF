@@ -4,8 +4,10 @@ import rt_ghf
 
 ### initialize variables
 timestep = 0.05       
-steps = 20000         
-total_steps = 2067000 
+#steps = 29000        
+#total_steps = 2893870
+steps = 33600
+total_steps = 1680000
 
 mag = -0.000085 # in au
 
@@ -14,18 +16,29 @@ mag_y = mag * np.sin(np.pi/4) * np.sin(np.pi/4)
 mag_z = mag * np.cos(np.pi/4) 
 
 ### initialize static calculation
+print("Initializing system.")
+
 mol = gto.M(        
 	verbose = 0,       
 	atom='Li 0 0 0',        
     basis='3-21G',
+    #basis='STO-3G',
     spin = 1)
-
 
 ### calculation to get initial hamiltonian
 mf = scf.ghf.GHF(mol)
 mf.scf()
 
-### initialize hamiltonian
+### testing, delete later
+
+den = mf.make_rdm1()
+ovlp = mf.get_ovlp()
+Nsp = int(ovlp.shape[0]/2)
+
+den = mf.make_rdm1()
+
+## initialize hamiltonian
+print("Initializing Hamiltonian")
 
 ovlp = mf.get_ovlp()
 hcore = mf.get_hcore()
@@ -42,8 +55,8 @@ hprime[Nsp:,Nsp:] = hcore - 0.5*mag_z*ovlp
 hprime[:Nsp,Nsp:] = 0.5*(mag_x - 1j*mag_y)*ovlp
 hprime[Nsp:,:Nsp] = 0.5*(mag_x + 1j*mag_y)*ovlp
 
-
 ### call dynamics 
+print("Beginning dynamics.")
 
 mf.get_hcore = lambda *args: hprime
 
@@ -51,33 +64,4 @@ var = rt_ghf.GHF(mf, timestep, steps, total_steps)
 
 var.dynamics()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+print("Simulation completed successfully.")
