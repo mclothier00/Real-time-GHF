@@ -5,4 +5,4 @@ A real-time extension of the generalized Hartree Fock (GHF) method, based on the
 
 The hydrogen atom example exactly matches Ding et al. The lithium atom example agrees with the results from Ding et al., with the exception that the initial magnetization of the electron is along the _x_ direction rather than the _y_ direction. 
 
-_Note:_ As of Jan 8, 2024, the file `rt_ghf.py` has been updated to print data to a file and to include a separate function to plot data. The example files were created using an older version of the code that appended observables to numpy arrays and that included plotting within the dynamics definition, and so do not include the `var.plot()` call.
+_Note:_ As of Jan 8, 2024, the file `rt_ghf.py` has been updated to print data to a file and to include a separate function to plot data. The example files were created using an older version of the code that appended observables to numpy arrays and that included plotting within the dynamics definition, and so do not include the `var.plot()` call. As of Jan 17, 2024, energy is also calcualted as an observable and a separate plot function has been included to plot energy as a function of time.
