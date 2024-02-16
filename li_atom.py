@@ -8,6 +8,7 @@ timestep = 0.05
 #total_steps = 2893870
 steps = 33600
 total_steps = 1680000
+filename = "li_atom"
 
 mag = -0.000085 # in au
 
@@ -60,8 +61,12 @@ print("Beginning dynamics.")
 
 mf.get_hcore = lambda *args: hprime
 
-var = rt_ghf.GHF(mf, timestep, steps, total_steps)
+var = rt_ghf.GHF(mf, timestep, steps, total_steps, filename)
 
 var.dynamics()
+
+var.plot_mag()
+
+var.plot_energy()
 
 print("Simulation completed successfully.")

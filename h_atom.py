@@ -6,6 +6,7 @@ import rt_ghf
 timestep = 0.05
 steps = 50000
 total_steps = 2080000
+filename = "h_atom"
 
 
 mag_z = 0.000085 # in au
@@ -40,41 +41,11 @@ hprime[Nsp:,Nsp:]= hcore - 0.5*mag_z*ovlp
 
 mf.get_hcore = lambda *args: hprime
 
-var = rt_ghf.GHF(mf, timestep, steps, total_steps)
+var = rt_ghf.GHF(mf, timestep, steps, total_steps, filename)
 
 var.dynamics()
 
+var.plot_mag()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+var.plot_energy()
 
